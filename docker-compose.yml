@@ -1,0 +1,39 @@
+version: '3.9'
+services:
+  db:
+    image: cassandra:4.0
+    ports:
+      - 9042
+    healthcheck:
+      test: [ "CMD", "ls", "/opt/cassandra/bin" ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    environment:
+      - CASSANDRA_HOST=db
+      - CASSANDRA_SEEDS=db
+      - CASSANDRA_CLUSTER_NAME=citizix
+
+  middle-ware:
+    image: janusgraph/janusgraph
+    depends_on: 
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bin/gremlin.sh", "-e", "scripts/remote-connect.groovy"]
+      interval: 10s
+      timeout: 30s
+      retries: 3
+    environment:
+      - JANUS_PROPS_TEMPLATE=cql
+      - janusgraph.storage.backend=cql
+      - janusgraph.storage.hostname=db:9042
+      # - janusgraph.index.search.hostname: jce-elastic
+    ports:
+      - 8182
+
+  py-srv:
+    build: py-srv
+    depends_on: 
+      middle-ware:
+        condition: service_healthy # service_completed_successfully
